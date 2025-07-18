@@ -94,24 +94,16 @@ const UserProfile = () => {
     const formData = new FormData();
     formData.append('profileImage', profileImage);
 
-    console.log('Starting upload...', {
-      fileName: profileImage.name,
-      fileType: profileImage.type,
-      fileSize: profileImage.size
-    });
-
     try {
-      const response = await axios.post('/profile/upload-image', formData, {
-        headers: {
-          'Content-Type': 'multipart/form-data'
-        },
-        onUploadProgress: (progressEvent) => {
-          const percentCompleted = Math.round((progressEvent.loaded * 100) / progressEvent.total);
-          console.log('Upload progress:', percentCompleted + '%');
-        }
+      console.log('Starting upload...', {
+        fileName: profileImage.name,
+        fileType: profileImage.type,
+        fileSize: profileImage.size
       });
 
-      console.log('Server response:', response.data);
+      const response = await axios.post('/profile/upload-image', formData);
+
+      console.log('Upload successful:', response.data);
 
       if (response.data.success) {
         setImagePreview(response.data.data.imagePath);
@@ -121,7 +113,6 @@ const UserProfile = () => {
       }
     } catch (error) {
       console.error('Upload error:', {
-        name: error.name,
         message: error.message,
         response: error.response?.data,
         status: error.response?.status

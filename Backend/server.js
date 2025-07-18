@@ -14,10 +14,17 @@ const app = express();
 app.use(express.json());
 app.use(cookieParser());
 app.use(cors({
-    origin: ['http://localhost:5173', 'http://localhost:5174'],
+    origin: [
+        'http://localhost:5173',
+        'http://localhost:5174',
+        'https://gatherguru-frontend.vercel.app',
+        'https://gatherguru-frontend.netlify.app',
+        process.env.FRONTEND_URL
+    ].filter(Boolean),
     credentials: true,
     methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'],
-    allowedHeaders: ['Content-Type', 'Authorization']
+    allowedHeaders: ['Content-Type', 'Authorization', 'Accept'],
+    exposedHeaders: ['set-cookie']
 }));
 
 // Create uploads directory if it doesn't exist
