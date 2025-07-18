@@ -82,20 +82,39 @@ const UserProfile = () => {
     const formData = new FormData();
     formData.append('file', profileImage);
 
+    console.log('Starting upload...');
+    console.log('File details:', {
+      name: profileImage.name,
+      type: profileImage.type,
+      size: profileImage.size
+    });
+
     try {
-      console.log('Uploading file:', profileImage.name);
       const response = await axios.post('/profile/upload-image', formData, {
         headers: {
           'Content-Type': 'multipart/form-data'
+        },
+        onUploadProgress: (progressEvent) => {
+          const percentCompleted = Math.round((progressEvent.loaded * 100) / progressEvent.total);
+          console.log('Upload progress:', percentCompleted + '%');
         }
       });
       
-      console.log('Upload successful:', response.data);
-      setImagePreview(response.data.data.imagePath);
-      toast.success('Profile image uploaded successfully');
+      console.log('Upload response:', response.data);
+      
+      if (response.data.success) {
+        setImagePreview(response.data.data.imagePath);
+        toast.success('Profile image uploaded successfully');
+      } else {
+        throw new Error(response.data.message || 'Upload failed');
+      }
     } catch (error) {
       console.error('Upload error:', error);
-      console.error('Error details:', error.response?.data);
+      console.error('Error details:', {
+        message: error.message,
+        response: error.response?.data,
+        status: error.response?.status
+      });
       toast.error(error.response?.data?.message || 'Failed to upload profile image');
     } finally {
       setLoading(false);

@@ -5,9 +5,9 @@ const path = require('path');
 
 // Configure Cloudinary
 cloudinary.config({
-  cloud_name: process.env.CLOUDINARY_CLOUD_NAME,
-  api_key: process.env.CLOUDINARY_API_KEY,
-  api_secret: process.env.CLOUDINARY_API_SECRET
+  cloud_name: process.env.CLOUDINARY_CLOUD_NAME || 'dxqhpxjmx',
+  api_key: process.env.CLOUDINARY_API_KEY || '944123168276773',
+  api_secret: process.env.CLOUDINARY_API_SECRET || 'Ry_yvFDEZbXBZEPtGPWGXJcQPSo'
 });
 
 // Configure multer for temporary storage
@@ -17,8 +17,18 @@ const upload = multer({ storage: storage });
 // Upload profile image
 const uploadProfileImage = async (req, res) => {
   try {
+    console.log('Starting image upload...');
+    console.log('User:', req.user?._id);
+    console.log('File:', req.file ? 'Present' : 'Not present');
+    console.log('Cloudinary Config:', {
+      cloud_name: cloudinary.config().cloud_name,
+      api_key: cloudinary.config().api_key ? 'Present' : 'Not present',
+      api_secret: cloudinary.config().api_secret ? 'Present' : 'Not present'
+    });
+
     // Check if user exists in request
     if (!req.user || !req.user._id) {
+      console.log('No user found in request');
       return res.status(401).json({ 
         success: false,
         message: 'User not authenticated' 
@@ -27,6 +37,7 @@ const uploadProfileImage = async (req, res) => {
 
     // Check if file exists
     if (!req.file) {
+      console.log('No file found in request');
       return res.status(400).json({ 
         success: false,
         message: 'No image file provided' 
@@ -34,26 +45,32 @@ const uploadProfileImage = async (req, res) => {
     }
 
     try {
+      console.log('Converting file to base64...');
       // Convert buffer to base64
       const b64 = Buffer.from(req.file.buffer).toString('base64');
       const dataURI = "data:" + req.file.mimetype + ";base64," + b64;
-
+      
+      console.log('Uploading to Cloudinary...');
       // Upload to Cloudinary
       const uploadResponse = await cloudinary.uploader.upload(dataURI, {
         folder: 'profile-images',
         public_id: `profile-${req.user._id}-${Date.now()}`,
         overwrite: true
       });
+      console.log('Cloudinary upload successful:', uploadResponse.secure_url);
 
+      console.log('Finding/creating user profile...');
       // Find or create user profile
       let profile = await UserProfile.findOne({ user: req.user._id });
       if (!profile) {
+        console.log('Creating new profile...');
         profile = new UserProfile({ user: req.user._id });
       }
 
       // Update profile with new image URL
       profile.profileImage = uploadResponse.secure_url;
       await profile.save();
+      console.log('Profile updated successfully');
 
       res.status(200).json({
         success: true,
@@ -64,19 +81,23 @@ const uploadProfileImage = async (req, res) => {
         }
       });
     } catch (uploadError) {
-      console.error('Error uploading to Cloudinary:', uploadError);
+      console.error('Error in try block:', uploadError);
+      console.error('Full error details:', JSON.stringify(uploadError, null, 2));
       return res.status(500).json({
         success: false,
         message: 'Error uploading image',
-        error: uploadError.message
+        error: uploadError.message,
+        details: uploadError.stack
       });
     }
   } catch (error) {
-    console.error('Error in uploadProfileImage:', error);
+    console.error('Error in outer try block:', error);
+    console.error('Full error details:', JSON.stringify(error, null, 2));
     return res.status(500).json({
       success: false,
       message: 'Server error',
-      error: error.message
+      error: error.message,
+      details: error.stack
     });
   }
 };
