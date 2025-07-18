@@ -1,6 +1,18 @@
 const UserProfile = require('../models/userProfileModel');
-const { put } = require('@vercel/blob');
+const cloudinary = require('cloudinary').v2;
+const multer = require('multer');
 const path = require('path');
+
+// Configure Cloudinary
+cloudinary.config({
+  cloud_name: process.env.CLOUDINARY_CLOUD_NAME,
+  api_key: process.env.CLOUDINARY_API_KEY,
+  api_secret: process.env.CLOUDINARY_API_SECRET
+});
+
+// Configure multer for temporary storage
+const storage = multer.memoryStorage();
+const upload = multer({ storage: storage });
 
 // Upload profile image
 const uploadProfileImage = async (req, res) => {
@@ -22,16 +34,15 @@ const uploadProfileImage = async (req, res) => {
     }
 
     try {
-      // Generate unique filename
-      const timestamp = Date.now();
-      const ext = path.extname(req.file.originalname) || '.jpg';
-      const filename = `profile-${req.user._id}-${timestamp}${ext}`;
+      // Convert buffer to base64
+      const b64 = Buffer.from(req.file.buffer).toString('base64');
+      const dataURI = "data:" + req.file.mimetype + ";base64," + b64;
 
-      // Upload to Vercel Blob
-      const blob = await put(filename, req.file.buffer, {
-        access: 'public',
-        addRandomSuffix: true,
-        contentType: req.file.mimetype || 'image/jpeg'
+      // Upload to Cloudinary
+      const uploadResponse = await cloudinary.uploader.upload(dataURI, {
+        folder: 'profile-images',
+        public_id: `profile-${req.user._id}-${Date.now()}`,
+        overwrite: true
       });
 
       // Find or create user profile
@@ -41,19 +52,19 @@ const uploadProfileImage = async (req, res) => {
       }
 
       // Update profile with new image URL
-      profile.profileImage = blob.url;
+      profile.profileImage = uploadResponse.secure_url;
       await profile.save();
 
       res.status(200).json({
         success: true,
         message: 'Profile image uploaded successfully',
         data: {
-          imagePath: blob.url,
+          imagePath: uploadResponse.secure_url,
           profile: profile
         }
       });
     } catch (uploadError) {
-      console.error('Error uploading to blob:', uploadError);
+      console.error('Error uploading to Cloudinary:', uploadError);
       return res.status(500).json({
         success: false,
         message: 'Error uploading image',
