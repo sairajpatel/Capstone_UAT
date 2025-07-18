@@ -78,15 +78,26 @@ const UserProfile = () => {
       return;
     }
 
+    // Validate file type
+    if (!profileImage.type.startsWith('image/')) {
+      toast.error('Please select an image file');
+      return;
+    }
+
+    // Validate file size (5MB limit)
+    if (profileImage.size > 5 * 1024 * 1024) {
+      toast.error('Image size should be less than 5MB');
+      return;
+    }
+
     setLoading(true);
     const formData = new FormData();
-    formData.append('file', profileImage);
+    formData.append('profileImage', profileImage);
 
-    console.log('Starting upload...');
-    console.log('File details:', {
-      name: profileImage.name,
-      type: profileImage.type,
-      size: profileImage.size
+    console.log('Starting upload...', {
+      fileName: profileImage.name,
+      fileType: profileImage.type,
+      fileSize: profileImage.size
     });
 
     try {
@@ -99,9 +110,9 @@ const UserProfile = () => {
           console.log('Upload progress:', percentCompleted + '%');
         }
       });
-      
-      console.log('Upload response:', response.data);
-      
+
+      console.log('Server response:', response.data);
+
       if (response.data.success) {
         setImagePreview(response.data.data.imagePath);
         toast.success('Profile image uploaded successfully');
@@ -109,13 +120,21 @@ const UserProfile = () => {
         throw new Error(response.data.message || 'Upload failed');
       }
     } catch (error) {
-      console.error('Upload error:', error);
-      console.error('Error details:', {
+      console.error('Upload error:', {
+        name: error.name,
         message: error.message,
         response: error.response?.data,
         status: error.response?.status
       });
-      toast.error(error.response?.data?.message || 'Failed to upload profile image');
+
+      let errorMessage = 'Failed to upload profile image';
+      if (error.response?.data?.message) {
+        errorMessage = error.response.data.message;
+      } else if (error.message) {
+        errorMessage = error.message;
+      }
+
+      toast.error(errorMessage);
     } finally {
       setLoading(false);
     }
