@@ -8,6 +8,7 @@ const uploadProfileImage = async (req, res) => {
     console.log('Starting uploadProfileImage...');
     console.log('Request user:', req.user);
     console.log('Request file:', req.file);
+    console.log('Request body:', req.body);
 
     // Check if user exists in request
     if (!req.user || !req.user._id) {
@@ -20,7 +21,7 @@ const uploadProfileImage = async (req, res) => {
 
     // Check if file exists
     if (!req.file) {
-      console.log('No file provided in request');
+      console.error('No file in request');
       return res.status(400).json({ 
         success: false,
         message: 'No image file provided' 
@@ -29,19 +30,10 @@ const uploadProfileImage = async (req, res) => {
 
     // Validate file type
     if (!req.file.mimetype.startsWith('image/')) {
+      console.error('Invalid file type:', req.file.mimetype);
       return res.status(400).json({ 
         success: false,
         message: 'Please upload an image file' 
-      });
-    }
-
-    // Check if BLOB token exists
-    const blobToken = process.env.BLOB_READ_WRITE_TOKEN;
-    if (!blobToken) {
-      console.error('BLOB_READ_WRITE_TOKEN not found in environment');
-      return res.status(500).json({ 
-        success: false,
-        message: 'Storage configuration error. Please contact support.' 
       });
     }
 
@@ -56,22 +48,32 @@ const uploadProfileImage = async (req, res) => {
       // Generate unique filename
       const timestamp = Date.now();
       const randomString = Math.random().toString(36).substring(7);
-      const filename = `profile-${req.user._id}-${timestamp}-${randomString}${path.extname(req.file.originalname)}`;
+      const ext = path.extname(req.file.originalname);
+      const filename = `profile-${req.user._id}-${timestamp}-${randomString}${ext}`;
       console.log('Generated filename:', filename);
 
-      // Upload to Vercel Blob with explicit token
+      // Check if BLOB token exists
+      const blobToken = process.env.BLOB_READ_WRITE_TOKEN;
+      if (!blobToken) {
+        console.error('BLOB_READ_WRITE_TOKEN not found');
+        return res.status(500).json({ 
+          success: false,
+          message: 'Storage configuration error' 
+        });
+      }
+
+      // Upload to Vercel Blob
       console.log('Uploading to Vercel Blob...');
       const blob = await put(filename, req.file.buffer, {
         access: 'public',
         addRandomSuffix: false,
         contentType: req.file.mimetype,
-        token: blobToken // Explicitly pass the token
+        token: blobToken
       });
-      console.log('Blob upload response:', {
+      console.log('Blob upload successful:', {
         url: blob.url,
-        pathname: blob.pathname,
-        contentType: blob.contentType,
-        size: blob.size
+        size: blob.size,
+        contentType: blob.contentType
       });
 
       // Update profile with new image URL
