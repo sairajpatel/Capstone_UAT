@@ -1,7 +1,13 @@
 const { Event, EVENT_CATEGORIES } = require('../models/eventModel');
-const multer = require('multer');
+const cloudinary = require('cloudinary').v2;
 const path = require('path');
-const { put } = require('@vercel/blob');
+
+// Configure Cloudinary
+cloudinary.config({
+  cloud_name: 'dxqhpxjmx',
+  api_key: '944123168276773',
+  api_secret: 'Ry_yvFDEZbXBZEPtGPWGXJcQPSo'
+});
 
 // Get Event Categories
 exports.getEventCategories = async (req, res) => {
@@ -78,52 +84,59 @@ exports.createEventBasic = async (req, res) => {
 // Update Event Banner - Step 2
 exports.updateEventBanner = async (req, res) => {
     try {
-        upload(req, res, async function (err) {
-            if (err) {
-                return res.status(400).json({
-                    success: false,
-                    message: err.message
-                });
+        if (!req.file) {
+            return res.status(400).json({
+                success: false,
+                message: 'Please upload a banner image'
+            });
+        }
+
+        const event = await Event.findById(req.params.eventId);
+        if (!event) {
+            return res.status(404).json({
+                success: false,
+                message: 'Event not found'
+            });
+        }
+
+        try {
+            // Convert buffer to base64 for Cloudinary
+            const b64 = Buffer.from(req.file.buffer).toString('base64');
+            const dataURI = "data:" + req.file.mimetype + ";base64," + b64;
+
+            // Upload to Cloudinary
+            const uploadResult = await cloudinary.uploader.upload(dataURI, {
+                folder: 'event-banners',
+                resource_type: 'auto',
+                public_id: `event-${event._id}-${Date.now()}`,
+                overwrite: true
+            });
+
+            // If there's an existing banner, delete it from Cloudinary
+            if (event.bannerImage) {
+                const publicId = event.bannerImage.split('/').pop().split('.')[0];
+                try {
+                    await cloudinary.uploader.destroy(`event-banners/${publicId}`);
+                } catch (error) {
+                    console.error('Error deleting old banner:', error);
+                }
             }
 
-            if (!req.file) {
-                return res.status(400).json({
-                    success: false,
-                    message: 'Please upload a banner image'
-                });
-            }
+            event.bannerImage = uploadResult.secure_url;
+            await event.save();
 
-            const event = await Event.findById(req.params.eventId);
-            if (!event) {
-                return res.status(404).json({
-                    success: false,
-                    message: 'Event not found'
-                });
-            }
-
-            try {
-                // Upload to Vercel Blob
-                const blob = await put(req.file.originalname, req.file.buffer, {
-                    access: 'public',
-                    addRandomSuffix: true
-                });
-
-                // Save the URL to the event
-                event.bannerImage = blob.url;
-                await event.save();
-
-                res.status(200).json({
-                    success: true,
-                    data: event
-                });
-            } catch (uploadError) {
-                console.error('Error uploading to Vercel Blob:', uploadError);
-                res.status(500).json({
-                    success: false,
-                    message: 'Error uploading image'
-                });
-            }
-        });
+            res.status(200).json({
+                success: true,
+                data: event
+            });
+        } catch (error) {
+            console.error('Error uploading banner:', error);
+            res.status(500).json({
+                success: false,
+                message: 'Error uploading banner image',
+                error: error.message
+            });
+        }
     } catch (error) {
         res.status(500).json({
             success: false,
