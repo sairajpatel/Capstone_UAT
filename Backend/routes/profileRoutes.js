@@ -16,7 +16,7 @@ router.get('/me', protect, getUserProfile);
 router.put('/update', protect, updateProfile);
 
 // Upload profile image
-router.post('/upload-image', protect, upload.single('profileImage'), uploadProfileImage);
+router.post('/upload-image', protect, upload, uploadProfileImage);
 
 // Delete profile image
 router.delete('/image', protect, deleteProfileImage);

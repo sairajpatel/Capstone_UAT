@@ -53,10 +53,12 @@ const uploadProfileImage = async (req, res) => {
     const profile = await UserProfile.findOne({ user: req.user._id });
     
     try {
-      // Upload to Vercel Blob
-      const blob = await put(req.file.originalname, req.file.buffer, {
+      // Upload to Vercel Blob with a unique filename
+      const filename = `${Date.now()}-${req.file.originalname}`;
+      const blob = await put(filename, req.file.buffer, {
         access: 'public',
-        addRandomSuffix: true
+        addRandomSuffix: true,
+        contentType: req.file.mimetype
       });
 
       // Update profile with new image URL
@@ -78,6 +80,7 @@ const uploadProfileImage = async (req, res) => {
       res.status(500).json({ message: 'Error uploading profile image', error: uploadError.message });
     }
   } catch (error) {
+    console.error('Error in uploadProfileImage:', error);
     res.status(500).json({ message: 'Error uploading profile image', error: error.message });
   }
 };

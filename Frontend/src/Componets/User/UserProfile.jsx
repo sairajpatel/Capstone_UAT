@@ -80,7 +80,7 @@ const UserProfile = () => {
 
     setLoading(true);
     const formData = new FormData();
-    formData.append('profileImage', profileImage);
+    formData.append('profileImage', profileImage);  // Changed back to 'profileImage' to match backend
 
     try {
       const response = await axios.post('/profile/upload-image', formData, {
@@ -88,7 +88,8 @@ const UserProfile = () => {
           'Content-Type': 'multipart/form-data'
         }
       });
-      setImagePreview(`http://localhost:5000${response.data.imagePath}`);
+      // Use the full URL from the response
+      setImagePreview(response.data.imagePath);
       toast.success('Profile image uploaded successfully');
     } catch (error) {
       console.error('Error uploading image:', error);
