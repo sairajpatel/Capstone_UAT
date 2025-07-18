@@ -6,9 +6,8 @@ const path = require('path');
 const uploadProfileImage = async (req, res) => {
   try {
     console.log('Starting uploadProfileImage...');
+    console.log('Request headers:', req.headers);
     console.log('Request user:', req.user);
-    console.log('Request file:', req.file);
-    console.log('Request body:', req.body);
 
     // Check if user exists in request
     if (!req.user || !req.user._id) {
@@ -19,84 +18,74 @@ const uploadProfileImage = async (req, res) => {
       });
     }
 
-    // Check if file exists
-    if (!req.file) {
-      console.error('No file in request');
-      return res.status(400).json({ 
-        success: false,
-        message: 'No image file provided' 
-      });
-    }
+    // Get raw body data
+    let chunks = [];
+    let fileData;
+    
+    req.on('data', chunk => {
+      chunks.push(chunk);
+    });
 
-    // Validate file type
-    if (!req.file.mimetype.startsWith('image/')) {
-      console.error('Invalid file type:', req.file.mimetype);
-      return res.status(400).json({ 
-        success: false,
-        message: 'Please upload an image file' 
-      });
-    }
+    req.on('end', async () => {
+      try {
+        const buffer = Buffer.concat(chunks);
+        
+        // Parse multipart form data
+        const boundary = req.headers['content-type'].split('boundary=')[1];
+        const parts = buffer.toString().split(boundary);
+        
+        // Find the file part
+        const filePart = parts.find(part => part.includes('filename='));
+        if (!filePart) {
+          return res.status(400).json({
+            success: false,
+            message: 'No file found in request'
+          });
+        }
 
-    try {
-      // Find or create user profile
-      let profile = await UserProfile.findOne({ user: req.user._id });
-      if (!profile) {
-        profile = new UserProfile({ user: req.user._id });
-      }
-      console.log('Profile found/created:', profile);
+        // Extract file data
+        const fileContentStart = filePart.indexOf('\r\n\r\n') + 4;
+        const fileContentEnd = filePart.lastIndexOf('\r\n');
+        fileData = filePart.slice(fileContentStart, fileContentEnd);
 
-      // Generate unique filename
-      const timestamp = Date.now();
-      const randomString = Math.random().toString(36).substring(7);
-      const ext = path.extname(req.file.originalname);
-      const filename = `profile-${req.user._id}-${timestamp}-${randomString}${ext}`;
-      console.log('Generated filename:', filename);
+        // Generate filename
+        const filename = `profile-${req.user._id}-${Date.now()}.jpg`;
 
-      // Check if BLOB token exists
-      const blobToken = process.env.BLOB_READ_WRITE_TOKEN;
-      if (!blobToken) {
-        console.error('BLOB_READ_WRITE_TOKEN not found');
-        return res.status(500).json({ 
+        // Upload to Vercel Blob
+        console.log('Uploading to Vercel Blob...');
+        const blob = await put(filename, Buffer.from(fileData, 'binary'), {
+          access: 'public',
+          addRandomSuffix: true,
+          contentType: 'image/jpeg'
+        });
+        console.log('Blob upload successful:', blob);
+
+        // Update profile
+        let profile = await UserProfile.findOne({ user: req.user._id });
+        if (!profile) {
+          profile = new UserProfile({ user: req.user._id });
+        }
+
+        profile.profileImage = blob.url;
+        await profile.save();
+
+        res.status(200).json({
+          success: true,
+          message: 'Profile image uploaded successfully',
+          data: {
+            imagePath: blob.url,
+            profile: profile
+          }
+        });
+      } catch (error) {
+        console.error('Error processing file:', error);
+        res.status(500).json({
           success: false,
-          message: 'Storage configuration error' 
+          message: 'Error processing file',
+          error: error.message
         });
       }
-
-      // Upload to Vercel Blob
-      console.log('Uploading to Vercel Blob...');
-      const blob = await put(filename, req.file.buffer, {
-        access: 'public',
-        addRandomSuffix: false,
-        contentType: req.file.mimetype,
-        token: blobToken
-      });
-      console.log('Blob upload successful:', {
-        url: blob.url,
-        size: blob.size,
-        contentType: blob.contentType
-      });
-
-      // Update profile with new image URL
-      profile.profileImage = blob.url;
-      await profile.save();
-      console.log('Profile updated with new image URL');
-
-      res.status(200).json({
-        success: true,
-        message: 'Profile image uploaded successfully',
-        data: {
-          imagePath: blob.url,
-          profile: profile
-        }
-      });
-    } catch (uploadError) {
-      console.error('Error in profile update/blob upload:', uploadError);
-      return res.status(500).json({
-        success: false,
-        message: 'Error uploading image',
-        error: uploadError.message
-      });
-    }
+    });
   } catch (error) {
     console.error('Error in uploadProfileImage:', error);
     return res.status(500).json({

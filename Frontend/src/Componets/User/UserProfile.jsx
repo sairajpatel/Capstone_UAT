@@ -82,27 +82,20 @@ const UserProfile = () => {
     const formData = new FormData();
     formData.append('file', profileImage);
 
-    // Log the FormData contents
-    console.log('File being uploaded:', profileImage);
-    console.log('File name:', profileImage.name);
-    console.log('File type:', profileImage.type);
-    console.log('File size:', profileImage.size);
-
     try {
-      console.log('Sending request to upload image...');
+      console.log('Uploading file:', profileImage.name);
       const response = await axios.post('/profile/upload-image', formData, {
         headers: {
           'Content-Type': 'multipart/form-data'
         }
       });
-      console.log('Upload response:', response.data);
       
-      // Use the full URL from the response
+      console.log('Upload successful:', response.data);
       setImagePreview(response.data.data.imagePath);
       toast.success('Profile image uploaded successfully');
     } catch (error) {
-      console.error('Error uploading image:', error);
-      console.error('Error response:', error.response?.data);
+      console.error('Upload error:', error);
+      console.error('Error details:', error.response?.data);
       toast.error(error.response?.data?.message || 'Failed to upload profile image');
     } finally {
       setLoading(false);
