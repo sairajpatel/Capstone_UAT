@@ -8,7 +8,6 @@ const uploadProfileImage = async (req, res) => {
     console.log('Starting uploadProfileImage...');
     console.log('Request user:', req.user);
     console.log('Request file:', req.file);
-    console.log('Request body:', req.body);
 
     // Check if user exists in request
     if (!req.user || !req.user._id) {
@@ -36,6 +35,16 @@ const uploadProfileImage = async (req, res) => {
       });
     }
 
+    // Check if BLOB token exists
+    const blobToken = process.env.BLOB_READ_WRITE_TOKEN;
+    if (!blobToken) {
+      console.error('BLOB_READ_WRITE_TOKEN not found in environment');
+      return res.status(500).json({ 
+        success: false,
+        message: 'Storage configuration error. Please contact support.' 
+      });
+    }
+
     try {
       // Find or create user profile
       let profile = await UserProfile.findOne({ user: req.user._id });
@@ -50,23 +59,20 @@ const uploadProfileImage = async (req, res) => {
       const filename = `profile-${req.user._id}-${timestamp}-${randomString}${path.extname(req.file.originalname)}`;
       console.log('Generated filename:', filename);
 
-      // Check if BLOB token exists
-      if (!process.env.BLOB_READ_WRITE_TOKEN) {
-        console.error('BLOB_READ_WRITE_TOKEN not found in environment');
-        return res.status(500).json({ 
-          success: false,
-          message: 'Storage configuration error' 
-        });
-      }
-
-      // Upload to Vercel Blob
+      // Upload to Vercel Blob with explicit token
       console.log('Uploading to Vercel Blob...');
       const blob = await put(filename, req.file.buffer, {
         access: 'public',
         addRandomSuffix: false,
-        contentType: req.file.mimetype
+        contentType: req.file.mimetype,
+        token: blobToken // Explicitly pass the token
       });
-      console.log('Blob upload response:', blob);
+      console.log('Blob upload response:', {
+        url: blob.url,
+        pathname: blob.pathname,
+        contentType: blob.contentType,
+        size: blob.size
+      });
 
       // Update profile with new image URL
       profile.profileImage = blob.url;
