@@ -2,17 +2,125 @@ const UserProfile = require('../models/userProfileModel');
 const { put } = require('@vercel/blob');
 const path = require('path');
 
+// Upload profile image
+const uploadProfileImage = async (req, res) => {
+  try {
+    console.log('Starting uploadProfileImage...');
+    console.log('Request user:', req.user);
+    console.log('Request file:', req.file);
+    console.log('Request body:', req.body);
+
+    // Check if user exists in request
+    if (!req.user || !req.user._id) {
+      console.error('No user found in request');
+      return res.status(401).json({ 
+        success: false,
+        message: 'User not authenticated' 
+      });
+    }
+
+    // Check if file exists
+    if (!req.file) {
+      console.log('No file provided in request');
+      return res.status(400).json({ 
+        success: false,
+        message: 'No image file provided' 
+      });
+    }
+
+    // Validate file type
+    if (!req.file.mimetype.startsWith('image/')) {
+      return res.status(400).json({ 
+        success: false,
+        message: 'Please upload an image file' 
+      });
+    }
+
+    try {
+      // Find or create user profile
+      let profile = await UserProfile.findOne({ user: req.user._id });
+      if (!profile) {
+        profile = new UserProfile({ user: req.user._id });
+      }
+      console.log('Profile found/created:', profile);
+
+      // Generate unique filename
+      const timestamp = Date.now();
+      const randomString = Math.random().toString(36).substring(7);
+      const filename = `profile-${req.user._id}-${timestamp}-${randomString}${path.extname(req.file.originalname)}`;
+      console.log('Generated filename:', filename);
+
+      // Check if BLOB token exists
+      if (!process.env.BLOB_READ_WRITE_TOKEN) {
+        console.error('BLOB_READ_WRITE_TOKEN not found in environment');
+        return res.status(500).json({ 
+          success: false,
+          message: 'Storage configuration error' 
+        });
+      }
+
+      // Upload to Vercel Blob
+      console.log('Uploading to Vercel Blob...');
+      const blob = await put(filename, req.file.buffer, {
+        access: 'public',
+        addRandomSuffix: false,
+        contentType: req.file.mimetype
+      });
+      console.log('Blob upload response:', blob);
+
+      // Update profile with new image URL
+      profile.profileImage = blob.url;
+      await profile.save();
+      console.log('Profile updated with new image URL');
+
+      res.status(200).json({
+        success: true,
+        message: 'Profile image uploaded successfully',
+        data: {
+          imagePath: blob.url,
+          profile: profile
+        }
+      });
+    } catch (uploadError) {
+      console.error('Error in profile update/blob upload:', uploadError);
+      return res.status(500).json({
+        success: false,
+        message: 'Error uploading image',
+        error: uploadError.message
+      });
+    }
+  } catch (error) {
+    console.error('Error in uploadProfileImage:', error);
+    return res.status(500).json({
+      success: false,
+      message: 'Server error',
+      error: error.message
+    });
+  }
+};
+
 // Get user profile
 const getUserProfile = async (req, res) => {
   try {
+    console.log('Getting user profile for:', req.user._id);
     const profile = await UserProfile.findOne({ user: req.user._id });
     if (!profile) {
-      return res.status(404).json({ message: 'Profile not found' });
+      return res.status(404).json({ 
+        success: false,
+        message: 'Profile not found' 
+      });
     }
-    res.json(profile);
+    res.json({
+      success: true,
+      data: profile
+    });
   } catch (error) {
     console.error('Error in getUserProfile:', error);
-    res.status(500).json({ message: 'Error fetching profile', error: error.message });
+    res.status(500).json({ 
+      success: false,
+      message: 'Error fetching profile', 
+      error: error.message 
+    });
   }
 };
 
@@ -27,91 +135,25 @@ const updateProfile = async (req, res) => {
     let profile = await UserProfile.findOne({ user: req.user._id });
 
     if (profile) {
-      // Update existing profile
       profile = await UserProfile.findOneAndUpdate(
         { user: req.user._id },
         profileData,
         { new: true }
       );
     } else {
-      // Create new profile
       profile = await UserProfile.create(profileData);
     }
 
-    res.json(profile);
+    res.json({
+      success: true,
+      data: profile
+    });
   } catch (error) {
     console.error('Error in updateProfile:', error);
-    res.status(500).json({ message: 'Error updating profile', error: error.message });
-  }
-};
-
-// Upload profile image
-const uploadProfileImage = async (req, res) => {
-  try {
-    console.log('Starting uploadProfileImage...');
-    console.log('Request file:', req.file);
-    console.log('Request body:', req.body);
-
-    if (!req.file) {
-      console.log('No file provided in request');
-      return res.status(400).json({ message: 'No image file provided' });
-    }
-
-    try {
-      console.log('Finding user profile...');
-      const profile = await UserProfile.findOne({ user: req.user._id });
-      console.log('Profile found:', profile);
-
-      console.log('Preparing to upload to Vercel Blob...');
-      // Upload to Vercel Blob with a unique filename
-      const filename = `${Date.now()}-${req.file.originalname}`;
-      console.log('Generated filename:', filename);
-
-      console.log('Uploading to Vercel Blob...');
-      console.log('BLOB_READ_WRITE_TOKEN exists:', !!process.env.BLOB_READ_WRITE_TOKEN);
-      
-      const blob = await put(filename, req.file.buffer, {
-        access: 'public',
-        addRandomSuffix: true,
-        contentType: req.file.mimetype
-      });
-
-      console.log('Blob upload successful:', blob);
-
-      // Update profile with new image URL
-      const imagePath = blob.url;
-      console.log('Image path to save:', imagePath);
-      
-      if (profile) {
-        profile.profileImage = imagePath;
-        await profile.save();
-        console.log('Profile updated with new image');
-      } else {
-        console.log('Creating new profile with image');
-        await UserProfile.create({
-          user: req.user._id,
-          profileImage: imagePath
-        });
-      }
-
-      console.log('Successfully completed image upload');
-      res.json({ message: 'Profile image uploaded successfully', imagePath });
-    } catch (uploadError) {
-      console.error('Error in Vercel Blob upload:', uploadError);
-      console.error('Full error details:', JSON.stringify(uploadError, null, 2));
-      res.status(500).json({ 
-        message: 'Error uploading profile image', 
-        error: uploadError.message,
-        details: uploadError.stack 
-      });
-    }
-  } catch (error) {
-    console.error('Error in uploadProfileImage outer try-catch:', error);
-    console.error('Full error details:', JSON.stringify(error, null, 2));
     res.status(500).json({ 
-      message: 'Error uploading profile image', 
-      error: error.message,
-      details: error.stack
+      success: false,
+      message: 'Error updating profile', 
+      error: error.message 
     });
   }
 };
@@ -122,17 +164,27 @@ const deleteProfileImage = async (req, res) => {
     const profile = await UserProfile.findOne({ user: req.user._id });
     
     if (!profile || !profile.profileImage) {
-      return res.status(404).json({ message: 'No profile image found' });
+      return res.status(404).json({ 
+        success: false,
+        message: 'No profile image found' 
+      });
     }
 
     // Clear image path in profile
     profile.profileImage = '';
     await profile.save();
 
-    res.json({ message: 'Profile image deleted successfully' });
+    res.json({ 
+      success: true,
+      message: 'Profile image deleted successfully' 
+    });
   } catch (error) {
     console.error('Error in deleteProfileImage:', error);
-    res.status(500).json({ message: 'Error deleting profile image', error: error.message });
+    res.status(500).json({ 
+      success: false,
+      message: 'Error deleting profile image', 
+      error: error.message 
+    });
   }
 };
 
