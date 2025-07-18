@@ -20,6 +20,6 @@ const upload = multer({
   limits: {
     fileSize: 5 * 1024 * 1024 // 5MB limit
   }
-}).single('profileImage'); // Changed field name to match frontend
+}).single('file'); // Match the frontend field name
 
 module.exports = upload; 

@@ -80,7 +80,7 @@ const UserProfile = () => {
 
     setLoading(true);
     const formData = new FormData();
-    formData.append('profileImage', profileImage);  // Changed back to 'profileImage' to match backend
+    formData.append('file', profileImage);
 
     try {
       const response = await axios.post('/profile/upload-image', formData, {
@@ -89,7 +89,7 @@ const UserProfile = () => {
         }
       });
       // Use the full URL from the response
-      setImagePreview(response.data.imagePath);
+      setImagePreview(response.data.data.imagePath);
       toast.success('Profile image uploaded successfully');
     } catch (error) {
       console.error('Error uploading image:', error);
