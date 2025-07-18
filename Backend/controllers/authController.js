@@ -42,7 +42,13 @@ exports.adminLogin = async (req, res) => {
         const token = generateToken(admin._id, 'admin');
 
         // Set cookie
-  res.cookie('token', token);
+        res.cookie('token', token, {
+            httpOnly: true,
+            secure: process.env.NODE_ENV === 'production',
+            sameSite: process.env.NODE_ENV === 'production' ? 'none' : 'lax',
+            path: '/',
+            maxAge: 30 * 24 * 60 * 60 * 1000 // 30 days
+        });
 
         res.status(200).json({
             success: true,
@@ -62,8 +68,11 @@ exports.adminLogin = async (req, res) => {
 
 exports.adminLogout = (req, res) => {
     res.cookie('token', 'none', {
-        expires: new Date(Date.now() + 10 * 1000),
-        httpOnly: true
+        httpOnly: true,
+        secure: process.env.NODE_ENV === 'production',
+        sameSite: process.env.NODE_ENV === 'production' ? 'none' : 'lax',
+        path: '/',
+        expires: new Date(Date.now() + 10 * 1000)
     });
     res.json({
         success: true,
@@ -119,8 +128,10 @@ exports.registerOrganizer = async (req, res) => {
 
         // Set cookie
         res.cookie('token', token, {
-            httpOnly: false,
+            httpOnly: true,
             secure: process.env.NODE_ENV === 'production',
+            sameSite: process.env.NODE_ENV === 'production' ? 'none' : 'lax',
+            path: '/',
             maxAge: 30 * 24 * 60 * 60 * 1000 // 30 days
         });
 
@@ -173,8 +184,10 @@ exports.organizerLogin = async (req, res) => {
 
         // Set cookie
         res.cookie('token', token, {
-            httpOnly: false,
+            httpOnly: true,
             secure: process.env.NODE_ENV === 'production',
+            sameSite: process.env.NODE_ENV === 'production' ? 'none' : 'lax',
+            path: '/',
             maxAge: 30 * 24 * 60 * 60 * 1000 // 30 days
         });
 
@@ -200,8 +213,11 @@ exports.organizerLogin = async (req, res) => {
 
 exports.organizerLogout = (req, res) => {
     res.cookie('token', 'none', {
-        expires: new Date(Date.now() + 10 * 1000),
-        httpOnly: true
+        httpOnly: true,
+        secure: process.env.NODE_ENV === 'production',
+        sameSite: process.env.NODE_ENV === 'production' ? 'none' : 'lax',
+        path: '/',
+        expires: new Date(Date.now() + 10 * 1000)
     });
     res.json({
         success: true,
@@ -237,6 +253,10 @@ exports.registerUser = async (req, res) => {
 
         // Set cookie
         res.cookie('token', token, {
+            httpOnly: true,
+            secure: process.env.NODE_ENV === 'production',
+            sameSite: process.env.NODE_ENV === 'production' ? 'none' : 'lax',
+            path: '/',
             maxAge: 30 * 24 * 60 * 60 * 1000 // 30 days
         });
 
@@ -288,7 +308,10 @@ exports.userLogin = async (req, res) => {
 
         // Set cookie
         res.cookie('token', token, {
-           
+            httpOnly: true,
+            secure: process.env.NODE_ENV === 'production',
+            sameSite: process.env.NODE_ENV === 'production' ? 'none' : 'lax',
+            path: '/',
             maxAge: 30 * 24 * 60 * 60 * 1000 // 30 days
         });
 
@@ -315,8 +338,9 @@ exports.userLogout = (req, res) => {
     res.cookie('token', '', {
         httpOnly: true,
         secure: process.env.NODE_ENV === 'production',
-        expires: new Date(0),
-        path: '/'
+        sameSite: process.env.NODE_ENV === 'production' ? 'none' : 'lax',
+        path: '/',
+        expires: new Date(0)
     });
     res.json({
         success: true,
