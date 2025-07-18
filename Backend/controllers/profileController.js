@@ -1,5 +1,5 @@
 const UserProfile = require('../models/userProfileModel');
-const fs = require('fs').promises;
+const { put } = require('@vercel/blob');
 const path = require('path');
 
 // Get user profile
@@ -52,30 +52,31 @@ const uploadProfileImage = async (req, res) => {
 
     const profile = await UserProfile.findOne({ user: req.user._id });
     
-    // Delete old profile image if it exists
-    if (profile && profile.profileImage) {
-      const oldImagePath = path.join(__dirname, '..', profile.profileImage);
-      try {
-        await fs.unlink(oldImagePath);
-      } catch (error) {
-        console.log('Error deleting old image:', error);
-      }
-    }
-
-    // Update profile with new image path
-    const imagePath = '/uploads/profile-images/' + req.file.filename;
-    
-    if (profile) {
-      profile.profileImage = imagePath;
-      await profile.save();
-    } else {
-      await UserProfile.create({
-        user: req.user._id,
-        profileImage: imagePath
+    try {
+      // Upload to Vercel Blob
+      const blob = await put(req.file.originalname, req.file.buffer, {
+        access: 'public',
+        addRandomSuffix: true
       });
-    }
 
-    res.json({ message: 'Profile image uploaded successfully', imagePath });
+      // Update profile with new image URL
+      const imagePath = blob.url;
+      
+      if (profile) {
+        profile.profileImage = imagePath;
+        await profile.save();
+      } else {
+        await UserProfile.create({
+          user: req.user._id,
+          profileImage: imagePath
+        });
+      }
+
+      res.json({ message: 'Profile image uploaded successfully', imagePath });
+    } catch (uploadError) {
+      console.error('Error uploading to Vercel Blob:', uploadError);
+      res.status(500).json({ message: 'Error uploading profile image', error: uploadError.message });
+    }
   } catch (error) {
     res.status(500).json({ message: 'Error uploading profile image', error: error.message });
   }
@@ -89,10 +90,6 @@ const deleteProfileImage = async (req, res) => {
     if (!profile || !profile.profileImage) {
       return res.status(404).json({ message: 'No profile image found' });
     }
-
-    // Delete image file
-    const imagePath = path.join(__dirname, '..', profile.profileImage);
-    await fs.unlink(imagePath);
 
     // Clear image path in profile
     profile.profileImage = '';

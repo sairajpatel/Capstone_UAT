@@ -1,6 +1,7 @@
 const { Event, EVENT_CATEGORIES } = require('../models/eventModel');
 const multer = require('multer');
 const path = require('path');
+const { put } = require('@vercel/blob');
 
 // Get Event Categories
 exports.getEventCategories = async (req, res) => {
@@ -24,15 +25,8 @@ exports.getEventCategories = async (req, res) => {
     }
 };
 
-// Configure multer for file upload
-const storage = multer.diskStorage({
-    destination: function (req, file, cb) {
-        cb(null, 'uploads/event-banners/');
-    },
-    filename: function (req, file, cb) {
-        cb(null, Date.now() + path.extname(file.originalname));
-    }
-});
+// Configure multer for memory storage instead of disk
+const storage = multer.memoryStorage();
 
 const upload = multer({
     storage: storage,
@@ -107,13 +101,28 @@ exports.updateEventBanner = async (req, res) => {
                 });
             }
 
-            event.bannerImage = req.file.path;
-            await event.save();
+            try {
+                // Upload to Vercel Blob
+                const blob = await put(req.file.originalname, req.file.buffer, {
+                    access: 'public',
+                    addRandomSuffix: true
+                });
 
-            res.status(200).json({
-                success: true,
-                data: event
-            });
+                // Save the URL to the event
+                event.bannerImage = blob.url;
+                await event.save();
+
+                res.status(200).json({
+                    success: true,
+                    data: event
+                });
+            } catch (uploadError) {
+                console.error('Error uploading to Vercel Blob:', uploadError);
+                res.status(500).json({
+                    success: false,
+                    message: 'Error uploading image'
+                });
+            }
         });
     } catch (error) {
         res.status(500).json({
